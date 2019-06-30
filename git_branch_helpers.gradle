@@ -1,0 +1,65 @@
+/**
+ * Retrieves remote branches with the leading "origin/" part of the path removed.
+ * E.g. origin/develop -> develop
+ */
+ArrayList<String> getRemoteBranches() {
+    ArrayList<String> gitRemoteBranches = new ArrayList<String>()
+    String[] cmdData = ["sh", "-c", 'git branch -r']
+    String response = cmdData.execute([], project.rootDir).text.trim()
+    String[] lines = response.split("\\n")
+    for (line in lines) {
+        if (line != null && !line.contains("->")) {
+            gitRemoteBranches.add(line.substring(line.indexOf('/') + 1))
+        }
+    }
+    println("getRemoteBranches returned $gitRemoteBranches")
+    return gitRemoteBranches
+}
+
+/**
+ * Retrieves the current working branch with the "origin/" prefix removed.
+ */
+String getCurrentWorkingBranch() {
+    String[] cmdData = ["sh", "-c", 'git branch | grep \'\\*\'']
+    String response = cmdData.execute([], project.rootDir).text.trim()
+    response = response.startsWith("origin/") ? response.substring(response.indexOf('/') + 1) : response
+    response = response.replace("*", "")
+    println("getCurrentWorkingBranch returned $response")
+    return response.trim()
+}
+
+/**
+ * Retrieves the name of the parent branch of the current working branch.
+ */
+String getParentBranch() {
+    String currentWorkingBranch = getCurrentWorkingBranch()
+    String[] cmdData = ["sh", "-c", 'git log --oneline --decorate --graph --all | grep \'HEAD ->\' ' +
+            '| grep ' + currentWorkingBranch]
+
+    String graphResult = cmdData.execute([], project.rootDir).text.trim()
+
+    String[] lines = graphResult.split("\n")
+
+    println("Git graph returned: ${lines[0]}")
+
+    // Match the "origin/<branch>" and return the first occurrence.
+    Pattern pattern = Pattern.compile("origin\\/[^,)]+")
+    Matcher matcher = pattern.matcher(lines[0])
+    String result = null
+    while (matcher.find()) {
+        // The last "origin/" represents the feature branch
+        // Example: | | | | | | | | | | | | | | | | | *   97bccfe7
+        // (HEAD -> feature-feature-one, origin/feature-feature_two,
+        // feature-one-child) Merge branch 'develop' into feature-feature-one
+
+        result = matcher.group()
+        println("Origin found: " + result)
+    }
+
+    // Strip the origin/ part of the parent branch name.
+    if (result != null && result.startsWith("origin/")) {
+        result = result.replace("origin/", "")
+    }
+    println("getParentBranch returned $result")
+    return result
+}
